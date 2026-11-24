@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FizzPop Shampoo | ยาสระผมสีสันสดใส & ระบบจัดการพัสดุครบวงจร</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Prompt & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Prompt:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Prompt', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            pop: {
+              pink: '#FF4D8D',
+              coral: '#FF6B6B',
+              yellow: '#FFD23F',
+              blue: '#00BBF9',
+              mint: '#00F5D4',
+              purple: '#9B5DE5',
+              cream: '#FFFDF7'
+            }
+          },
+          boxShadow: {
+            'pop': '4px 4px 0px 0px #18181B',
+            'pop-lg': '6px 6px 0px 0px #18181B',
+            'pop-sm': '2px 2px 0px 0px #18181B',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #FFFDF7; }
+    ::-webkit-scrollbar-thumb { background: #FF4D8D; border-radius: 9999px; border: 2px solid #18181B; }
+
+    /* Pop Pattern Background */
+    .bg-pop-dots {
+      background-color: #FFFDF7;
+      background-image: radial-gradient(#FF4D8D 1.2px, transparent 1.2px), radial-gradient(#00BBF9 1.2px, #FFFDF7 1.2px);
+      background-size: 32px 32px;
+      background-position: 0 0, 16px 16px;
+    }
+
+    /* Simulated CSS Barcode */
+    .barcode-stripes {
+      background: repeating-linear-gradient(
+        to right,
+        #000 0px, #000 2px,
+        transparent 2px, transparent 4px,
+        #000 4px, #000 5px,
+        transparent 5px, transparent 8px,
+        #000 8px, #000 11px,
+        transparent 11px, transparent 13px
+      );
+    }
+
+    /* Floating Animation for Bottles */
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px) rotate(-2deg); }
+      50% { transform: translateY(-8px) rotate(2deg); }
+    }
+    .animate-float {
+      animation: floatSlow 4s ease-in-out infinite;
+    }
+
+    /* Print Styling for 100x150mm Shipping Label */
+    @media print {
+      @page {
+        size: 100mm 150mm;
+        margin: 0;
+      }
+      body * {
+        visibility: hidden;
+      }
+      #print-label-container, #print-label-container * {
+        visibility: visible;
+      }
+      #print-label-container {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100mm;
+        height: 150mm;
+        margin: 0;
+        padding: 4mm;
+        background: white !important;
+        color: black !important;
+        box-shadow: none !important;
+        border: none !important;
+        z-index: 99999;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-pop-cream text-zinc-900 antialiased selection:bg-pop-yellow selection:text-zinc-900">
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2.5 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- Top Navigation & Mode Switcher -->
+  <nav class="sticky top-0 z-40 bg-white border-b-2 border-zinc-900 no-print">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 gap-3">
+        <!-- Brand Logo -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-11 h-11 rounded-2xl bg-pop-pink border-2 border-zinc-900 shadow-pop-sm text-white flex items-center justify-center transform -rotate-3">
+              <i class="fa-solid fa-pump-soap text-xl text-pop-yellow"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <h1 class="font-extrabold text-xl tracking-tight text-zinc-900">Fizz<span class="text-pop-pink">Pop</span></h1>
+                <span class="text-[10px] font-extrabold bg-pop-yellow border border-zinc-900 px-1.5 py-0.5 rounded-md uppercase">Hair Care</span>
+              </div>
+              <p class="text-[11px] text-zinc-500 font-medium">Vibrant Fruit Shampoo & Fulfillment</p>
+            </div>
+          </div>
+          <!-- Connection Status Badge (Mobile) -->
+          <span id="api-status-badge-mobile" class="sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-pop-yellow/40 border border-zinc-900 text-zinc-900">
+            <span class="w-2 h-2 rounded-full bg-pop-pink"></span> Demo
+          </span>
+        </div>
+
+        <!-- Mode Tabs -->
+        <div class="flex items-center bg-zinc-100 p-1.5 rounded-2xl border-2 border-zinc-900 overflow-x-auto gap-1">
+          <button onclick="switchTab('store')" id="tab-store" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-pop-pink text-white border-2 border-zinc-900 shadow-pop-sm whitespace-nowrap">
+            <i class="fa-solid fa-store"></i>
+            <span>หน้าร้านค้า</span>
+          </button>
+          <button onclick="switchTab('admin')" id="tab-admin" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-zinc-700 hover:bg-white border-2 border-transparent whitespace-nowrap">
+            <i class="fa-solid fa-boxes-packing"></i>
+            <span>แพ็คของ & จ่าหน้า</span>
+            <span id="pending-badge" class="bg-pop-yellow text-zinc-900 border border-zinc-900 text-xs px-1.5 py-0.2 rounded-full font-extrabold">0</span>
+          </button>
+          <button onclick="switchTab('setup')" id="tab-setup" class="flex-1 sm:flex-none flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-zinc-700 hover:bg-white border-2 border-transparent whitespace-nowrap" title="ตั้งค่า Google Sheets & GitHub">
+            <i class="fa-solid fa-code"></i>
+            <span class="hidden md:inline">ตั้งค่า & โค้ด</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- =====================================================================
+       TAB 1: หน้าร้าน (VIBRANT LANDING PAGE & CHECKOUT)
+  ====================================================================== -->
+  <main id="view-store" class="block">
+    <!-- Vibrant Hero Banner -->
+    <section class="relative bg-gradient-to-br from-pop-pink via-pop-coral to-pop-yellow border-b-2 border-zinc-900 overflow-hidden">
+      <!-- Decorative Shapes -->
+      <div class="absolute -top-10 -left-10 w-44 h-44 rounded-full bg-pop-mint/40 blur-xl"></div>
+      <div class="absolute bottom-0 right-10 w-64 h-64 rounded-full bg-pop-blue/30 blur-2xl"></div>
+
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-12 md:py-16 relative z-10">
+        <div class="grid md:grid-cols-12 gap-8 items-center">
+          <div class="md:col-span-7 space-y-5 text-center md:text-left">
+            <span class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border-2 border-zinc-900 shadow-pop-sm text-zinc-900 text-xs sm:text-sm font-extrabold">
+              <i class="fa-solid fa-bolt text-pop-pink"></i> สูตรผลไม้ & วิตามินเข้มข้น หอมฟุ้งติดผม 24 ชม.!
+            </span>
+            <h2 class="text-3xl sm:text-5xl font-extrabold text-white drop-shadow-[2px_3px_0px_#18181B] leading-tight">
+              สระสนุก ผมนุ่มเด้ง <span class="inline-block bg-pop-yellow text-zinc-900 px-3 py-0.5 rounded-2xl border-2 border-zinc-900 shadow-pop-sm transform -rotate-1 mt-1">สีสันสดใสทุกวัน!</span>
+            </h2>
+            <p class="text-white font-medium text-base sm:text-lg max-w-xl mx-auto md:mx-0 bg-zinc-900/20 backdrop-blur-xs p-3.5 rounded-2xl border border-white/30">
+              บอกลาผมลีบแบนและหนังศีรษะมันเยิ้ม ด้วยแชมพูวิตามินผลไม้สกัดเย็น ไร้ซิลิโคน ไร้พาราเบน อ่อนโยนต่อทุกสภาพเส้นผม
+            </p>
+            <div class="pt-2 flex flex-col sm:flex-row gap-3.5 justify-center md:justify-start">
+              <a href="#product-selection" class="bg-pop-mint hover:bg-emerald-300 text-zinc-900 font-extrabold px-7 py-3.5 rounded-2xl border-2 border-zinc-900 shadow-pop hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-pop-sm transition text-center text-base">
+                ช้อปสูตรโปรดเลย <i class="fa-solid fa-arrow-down ml-1.5"></i>
+              </a>
+              <div class="flex items-center justify-center gap-4 text-xs sm:text-sm font-bold text-zinc-900 bg-white/90 px-4 py-2.5 rounded-2xl border-2 border-zinc-900">
+                <span><i class="fa-solid fa-truck-fast text-pop-pink mr-1"></i> ส่งฟรีทุกออเดอร์</span>
+                <span><i class="fa-solid fa-wallet text-pop-blue mr-1"></i> มีเก็บปลายทาง</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hero Colorful SVG Illustration Showcase -->
+          <div class="md:col-span-5 flex justify-center">
+            <div class="relative w-full max-w-sm bg-white rounded-3xl p-6 border-2 border-zinc-900 shadow-pop-lg">
+              <div class="absolute -top-4 -right-4 bg-pop-blue text-white font-extrabold text-xs px-3.5 py-2 rounded-2xl border-2 border-zinc-900 shadow-pop-sm transform rotate-6">
+                NEW FORMULA! ✨
+              </div>
+              
+              <!-- Custom Colorful Shampoo Bottles SVG Graphic -->
+              <div class="aspect-square rounded-2xl bg-gradient-to-tr from-pink-100 via-yellow-100 to-cyan-100 border-2 border-zinc-900 flex items-center justify-center p-4 overflow-hidden relative">
+                <svg viewBox="0 0 320 280" class="w-full h-full animate-float">
+                  <!-- Decorative Bubbles -->
+                  <circle cx="55" cy="65" r="18" fill="#FF4D8D" fill-opacity="0.25" stroke="#18181B" stroke-width="2"/>
+                  <circle cx="265" cy="55" r="22" fill="#00BBF9" fill-opacity="0.25" stroke="#18181B" stroke-width="2"/>
+                  <circle cx="275" cy="190" r="14" fill="#FFD23F" fill-opacity="0.6" stroke="#18181B" stroke-width="2"/>
+                  <circle cx="45" cy="200" r="12" fill="#00F5D4" fill-opacity="0.6" stroke="#18181B" stroke-width="2"/>
+
+                  <!-- Bottle 1: Berry Pop (Pink-Coral) -->
+                  <g transform="translate(55, 35) rotate(-6 45 110)">
+                    <!-- Pump Nozzle -->
+                    <path d="M35 15 L65 15 L68 22 L35 22 Z" fill="#FFD23F" stroke="#18181B" stroke-width="3" stroke-linejoin="round"/>
+                    <rect x="42" y="22" width="12" height="14" fill="#FFF" stroke="#18181B" stroke-width="3"/>
+                    <!-- Cap -->
+                    <rect x="34" y="36" width="28" height="14" rx="4" fill="#9B5DE5" stroke="#18181B" stroke-width="3"/>
+                    <!-- Bottle Body -->
+                    <rect x="14" y="50" width="68" height="155" rx="22" fill="#FF4D8D" stroke="#18181B" stroke-width="3.5"/>
+                    <!-- Highlight -->
+                    <path d="M26 68 L26 185" stroke="#FFF" stroke-width="4" stroke-linecap="round" opacity="0.6"/>
+                    <!-- Label -->
+                    <rect x="20" y="88" width="56" height="82" rx="10" fill="#FFFDF7" stroke="#18181B" stroke-width="2.5"/>
+                    <circle cx="48" cy="112" r="12" fill="#FF6B6B" stroke="#18181B" stroke-width="2"/>
+                    <text x="48" y="138" font-size="9" font-weight="800" text-anchor="middle" fill="#18181B">BERRY</text>
+                    <text x="48" y="150" font-size="8" font-weight="700" text-anchor="middle" fill="#FF4D8D">POP 300ml</text>
+                  </g>
+
+                  <!-- Bottle 2: Citrus Fresh (Yellow-Blue) -->
+                  <g transform="translate(160, 42) rotate(6 45 110)">
+                    <!-- Pump Nozzle -->
+                    <path d="M32 15 L62 15 L62 22 L29 22 Z" fill="#FF4D8D" stroke="#18181B" stroke-width="3" stroke-linejoin="round"/>
+                    <rect x="42" y="22" width="12" height="14" fill="#FFF" stroke="#18181B" stroke-width="3"/>
+                    <!-- Cap -->
+                    <rect x="34" y="36" width="28" height="14" rx="4" fill="#00BBF9" stroke="#18181B" stroke-width="3"/>
+                    <!-- Bottle Body -->
+                    <rect x="14" y="50" width="68" height="155" rx="22" fill="#FFD23F" stroke="#18181B" stroke-width="3.5"/>
+                    <!-- Highlight -->
+                    <path d="M70 68 L70 185" stroke="#FFF" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+                    <!-- Label -->
+                    <rect x="20" y="88" width="56" height="82" rx="10" fill="#FFFDF7" stroke="#18181B" stroke-width="2.5"/>
+                    <circle cx="48" cy="112" r="12" fill="#00F5D4" stroke="#18181B" stroke-width="2"/>
+                    <text x="48" y="138" font-size="9" font-weight="800" text-anchor="middle" fill="#18181B">CITRUS</text>
+                    <text x="48" y="150" font-size="8" font-weight="700" text-anchor="middle" fill="#0088B8">FRESH 300ml</text>
+                  </g>
+                </svg>
+              </div>
+
+              <div class="mt-4 flex items-center justify-between bg-pop-yellow/40 p-3 rounded-2xl border-2 border-zinc-900">
+                <div>
+                  <p class="text-xs font-extrabold text-zinc-900">รีวิว 4.9/5 ดาวจากผู้ใช้จริง</p>
+                  <p class="text-[11px] font-medium text-zinc-700">ผมหอมนุ่มเด้งตั้งแต่ครั้งแรกที่ใช้</p>
+                </div>
+                <div class="flex text-pop-pink text-sm gap-0.5">
+                  <i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i><i class="fa-solid fa-star"></i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Colorful Benefits Bar -->
+    <section class="bg-white border-b-2 border-zinc-900">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+          <div class="p-3.5 rounded-2xl bg-pink-50 border-2 border-zinc-900 shadow-pop-sm">
+            <div class="w-10 h-10 mx-auto rounded-xl bg-pop-pink text-white border border-zinc-900 flex items-center justify-center mb-2">
+              <i class="fa-solid fa-wand-magic-sparkles"></i>
+            </div>
+            <h4 class="font-extrabold text-sm text-zinc-900">วิตามินผลไม้แท้</h4>
+            <p class="text-xs text-zinc-600">ปราศจากซิลิโคน & พาราเบน</p>
+          </div>
+          <div class="p-3.5 rounded-2xl bg-yellow-50 border-2 border-zinc-900 shadow-pop-sm">
+            <div class="w-10 h-10 mx-auto rounded-xl bg-pop-yellow text-zinc-900 border border-zinc-900 flex items-center justify-center mb-2">
+              <i class="fa-solid fa-feather-pointed"></i>
+            </div>
+            <h4 class="font-extrabold text-sm text-zinc-900">ผมนุ่มมีวอลลุ่ม</h4>
+            <p class="text-xs text-zinc-600">ไม่ลีบแบน จัดทรงง่าย</p>
+          </div>
+          <div class="p-3.5 rounded-2xl bg-cyan-50 border-2 border-zinc-900 shadow-pop-sm">
+            <div class="w-10 h-10 mx-auto rounded-xl bg-pop-blue text-white border border-zinc-900 flex items-center justify-center mb-2">
+              <i class="fa-solid fa-snowflake"></i>
+            </div>
+            <h4 class="font-extrabold text-sm text-zinc-900">เย็นสดชื่นคุมมัน</h4>
+            <p class="text-xs text-zinc-600">หนังศีรษะสะอาดเบาสบาย</p>
+          </div>
+          <div class="p-3.5 rounded-2xl bg-emerald-50 border-2 border-zinc-900 shadow-pop-sm">
+            <div class="w-10 h-10 mx-auto rounded-xl bg-pop-mint text-zinc-900 border border-zinc-900 flex items-center justify-center mb-2">
+              <i class="fa-solid fa-box-open"></i>
+            </div>
+            <h4 class="font-extrabold text-sm text-zinc-900">แพ็คไวส่งทุกวัน</h4>
+            <p class="text-xs text-zinc-600">ห่อบับเบิ้ลกันกระแทกอย่างดี</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Product Selection (3 Vibrant SKUs) & Order Form -->
+    <section id="product-selection" class="bg-pop-dots py-12">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6">
+        <div class="text-center max-w-2xl mx-auto mb-10 bg-white p-6 rounded-3xl border-2 border-zinc-900 shadow-pop">
+          <span class="inline-block bg-pop-purple text-white font-extrabold text-xs px-3 py-1 rounded-full border border-zinc-900 uppercase tracking-wider">Pick Your Vibe</span>
+          <h3 class="text-2xl sm:text-3xl font-extrabold text-zinc-900 mt-2">เลือกสูตรยาสระผมที่ใช่สำหรับคุณ</h3>
+          <p class="text-zinc-600 text-sm mt-1">คละสูตรได้ตามใจชอบ จัดส่งฟรีทั่วไทยตั้งแต่ขวดแรก!</p>
+        </div>
+
+        <div class="grid lg:grid-cols-12 gap-8 items-start">
+          <!-- Left Column: Product Cards (3 SKUs) -->
+          <div class="lg:col-span-7 space-y-6">
+            
+            <!-- SKU-01 Card: Berry Pop Volume -->
+            <div class="bg-white rounded-3xl p-5 sm:p-6 border-2 border-zinc-900 shadow-pop hover:translate-x-[1px] hover:translate-y-[1px] transition-all flex flex-col sm:flex-row gap-5">
+              <div class="sm:w-44 h-48 sm:h-auto rounded-2xl bg-gradient-to-br from-pink-200 via-rose-200 to-orange-200 border-2 border-zinc-900 shrink-0 relative flex items-center justify-center p-3">
+                <span class="absolute top-2.5 left-2.5 bg-pop-pink text-white text-xs font-extrabold px-2.5 py-1 rounded-xl border border-zinc-900 shadow-pop-sm">
+                  SKU-01
+                </span>
+                <!-- Vibrant Pink Bottle SVG -->
+                <svg viewBox="0 0 120 150" class="w-28 h-36">
+                  <path d="M48 12 L75 12 L78 18 L48 18 Z" fill="#FFD23F" stroke="#18181B" stroke-width="2.5"/>
+                  <rect x="54" y="18" width="10" height="10" fill="#FFF" stroke="#18181B" stroke-width="2.5"/>
+                  <rect x="46" y="28" width="26" height="10" rx="3" fill="#9B5DE5" stroke="#18181B" stroke-width="2.5"/>
+                  <rect x="30" y="38" width="58" height="102" rx="18" fill="#FF4D8D" stroke="#18181B" stroke-width="3"/>
+                  <rect x="36" y="64" width="46" height="54" rx="8" fill="#FFFDF7" stroke="#18181B" stroke-width="2"/>
+                  <circle cx="59" cy="80" r="9" fill="#FF6B6B" stroke="#18181B" stroke-width="1.5"/>
+                  <text x="59" y="102" font-size="7.5" font-weight="800" text-anchor="middle" fill="#18181B">BERRY POP</text>
+                  <text x="59" y="111" font-size="6.5" font-weight="700" text-anchor="middle" fill="#FF4D8D">VOLUME</text>
+                </svg>
+              </div>
+              <div class="flex-1 flex flex-col justify-between">
+                <div>
+                  <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                    <span class="text-xs font-extrabold bg-pink-100 text-pop-pink px-2.5 py-0.5 rounded-full border border-zinc-900">
+                      สูตรเพิ่มวอลลุ่มผมเด้งหอมหวาน
+                    </span>
+                    <span class="text-xs font-bold text-zinc-500">300 ml</span>
+                  </div>
+                  <h4 class="text-xl font-extrabold text-zinc-900">Berry Pop Volume (เบอร์รี่รวม & ไบโอติน)</h4>
+                  <p class="text-sm text-zinc-600 mt-1.5 leading-relaxed">
+                    สารสกัดมิกซ์เบอร์รี่และไบโอตินเข้มข้น บำรุงผมแห้งเสียชี้ฟูให้กลับมานุ่มลื่น มีวอลลุ่มเด้งสวย พร้อมกลิ่นหอมหวานสดใสติดทนนาน
+                  </p>
+                </div>
+                
+                <div class="mt-5 pt-4 border-t-2 border-dashed border-zinc-200 flex items-center justify-between">
+                  <div>
+                    <span class="text-xs text-zinc-400 line-through block font-semibold">ปกติ ฿390</span>
+                    <span class="text-2xl font-extrabold text-pop-pink">฿290</span>
+                  </div>
+                  <!-- Quantity Stepper -->
+                  <div class="flex items-center bg-pink-50 rounded-2xl p-1 border-2 border-zinc-900">
+                    <button type="button" onclick="updateQty('SKU-01', -1)" class="w-9 h-9 rounded-xl bg-white text-zinc-900 hover:bg-pop-yellow font-extrabold border border-zinc-900 transition flex items-center justify-center">
+                      <i class="fa-solid fa-minus text-xs"></i>
+                    </button>
+                    <span id="qty-SKU-01" class="w-11 text-center font-extrabold text-zinc-900 text-base">1</span>
+                    <button type="button" onclick="updateQty('SKU-01', 1)" class="w-9 h-9 rounded-xl bg-pop-pink text-white hover:bg-rose-600 font-extrabold border border-zinc-900 transition flex items-center justify-center">
+                      <i class="fa-solid fa-plus text-xs"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SKU-02 Card: Citrus Fresh Detox -->
+            <div class="bg-white rounded-3xl p-5 sm:p-6 border-2 border-zinc-900 shadow-pop hover:translate-x-[1px] hover:translate-y-[1px] transition-all flex flex-col sm:flex-row gap-5">
+              <div class="sm:w-44 h-48 sm:h-auto rounded-2xl bg-gradient-to-br from-yellow-200 via-amber-100 to-cyan-200 border-2 border-zinc-900 shrink-0 relative flex items-center justify-center p-3">
+                <span class="absolute top-2.5 left-2.5 bg-pop-blue text-white text-xs font-extrabold px-2.5 py-1 rounded-xl border border-zinc-900 shadow-pop-sm">
+                  SKU-02
+                </span>
+                <!-- Vibrant Yellow-Blue Bottle SVG -->
+                <svg viewBox="0 0 120 150" class="w-28 h-36">
+                  <path d="M48 12 L75 12 L78 18 L48 18 Z" fill="#FF4D8D" stroke="#18181B" stroke-width="2.5"/>
+                  <rect x="54" y="18" width="10" height="10" fill="#FFF" stroke="#18181B" stroke-width="2.5"/>
+                  <rect x="46" y="28" width="26" height="10" rx="3" fill="#00BBF9" stroke="#18181B" stroke-width="2.5"/>
+                  <rect x="30" y="38" width="58" height="102" rx="18" fill="#FFD23F" stroke="#18181B" stroke-width="3"/>
+                  <rect x="36" y="64" width="46" height="54" rx="8" fill="#FFFDF7" stroke="#18181B" stroke-width="2"/>
+                  <circle cx="59" cy="80" r="9" fill="#00F5D4" stroke="#18181B" stroke-width="1.5"/>
+                  <text x="59" y="102" font-size="7.5" font-weight="800" text-anchor="middle" fill="#18181B">CITRUS</text>
+                  <text x="59" y="111" font-size="6.5" font-weight="700" text-anchor="middle" fill="#0088B8">DETOX</text>
+                </svg>
+              </div>
+              <div class="flex-1 flex flex-col justify-between">
+                <div>
+                  <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                    <span class="text-xs font-extrabold bg-cyan-100 text-sky-800 px-2.5 py-0.5 rounded-full border border-zinc-900">
+                      สูตรลดความมัน เย็นสดชื่น
+                    </span>
+                    <span class="text-xs font-bold text-zinc-500">300 ml</span>
+                  </div>
+                  <h4 class="text-xl font-extrabold text-zinc-900">Citrus Fresh Detox (ส้มยูซุ & มิ้นท์)</h4>
+                  <p class="text-sm text-zinc-600 mt-1.5 leading-relaxed">
+                    ดีท็อกซ์ความมันและสิ่งตกค้างบนหนังศีรษะด้วยส้มยูซุญี่ปุ่นและเปปเปอร์มิ้นท์ เย็นสดชื่นสบายหัว ลดรังแคและอาการคันทันที
+                  </p>
+                </div>
+                
+                <div class="mt-5 pt-4 border-t-2 border-dashed border-zinc-200 flex items-center justify-between">
+                  <div>
+                    <span class="text-xs text-zinc-400 line-through block font-semibold">ปกติ ฿450</span>
+                    <span class="text-2xl font-extrabold text-sky-600">฿350</span>
+                  </div>
+                  <!-- Quantity Stepper -->
+                  <div class="flex items-center bg-cyan-50 rounded-2xl p-1 border-2 border-zinc-900">
+                    <button type="button" onclick="updateQty('SKU-02', -1)" class="w-9 h-9 rounded-xl bg-white text-zinc-900 hover:bg-pop-yellow font-extrabold border border-zinc-900 transition flex items-center justify-center">
+                      <i class="fa-solid fa-minus text-xs"></i>
+                    </button>
+                    <span id="qty-SKU-02" class="w-11 text-center font-extrabold text-zinc-900 text-base">0</span>
+                    <button type="button" onclick="updateQty('SKU-02', 1)" class="w-9 h-9 rounded-xl bg-pop-blue text-white hover:bg-sky-600 font-extrabold border border-zinc-900 transition flex items-center justify-center">
+                      <i class="fa-solid fa-plus text-xs"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- SKU-03 Card: Rainbow Duo Set (Promo) -->
+            <div class="bg-gradient-to-r from-purple-100 via-pink-100 to-yellow-100 rounded-3xl p-5 sm:p-6 border-2 border-zinc-900 shadow-pop hover:translate-x-[1px] hover:translate-y-[1px] transition-all flex flex-col sm:flex-row gap-5 relative">
+              <div class="absolute -top-3.5 right-4 bg-pop-yellow text-zinc-900 font-extrabold text-xs px-3 py-1 rounded-full border-2 border-zinc-900 shadow-pop-sm">
+                🔥 ขายดีสุดคุ้ม ประหยัด ฿50
+              </div>
+              <div class="sm:w-44 h-44 sm:h-auto rounded-2xl bg-white border-2 border-zinc-900 shrink-0 relative flex items-center justify-center p-2">
+                <span class="absolute top-2 left-2 bg-pop-purple text-white text-xs font-extrabold px-2.5 py-0.5 rounded-xl border border-zinc-900">
+                  SKU-03
+                </span>
+                <!-- Duo Bottles Icon SVG -->
+                <svg viewBox="0 0 140 130" class="w-32 h-32">
+                  <rect x="24" y="34" width="42" height="80" rx="14" fill="#FF4D8D" stroke="#18181B" stroke-width="2.5"/>
+                  <rect x="35" y="24" width="20" height="10" rx="3" fill="#9B5DE5" stroke="#18181B" stroke-width="2"/>
+                  <rect x="74" y="34" width="42" height="80" rx="14" fill="#FFD23F" stroke="#18181B" stroke-width="2.5"/>
+                  <rect x="85" y="24" width="20" height="10" rx="3" fill="#00BBF9" stroke="#18181B" stroke-width="2"/>
+                  <circle cx="70" cy="74" r="18" fill="#00F5D4" stroke="#18181B" stroke-width="2.5"/>
+                  <text x="70" y="78" font-size="10" font-weight="900" text-anchor="middle" fill="#18181B">DUO</text>
+                </svg>
+              </div>
+              <div class="flex-1 flex flex-col justify-between">
+                <div>
+                  <div class="flex flex-wrap items-center gap-2 mb-1.5">
+                    <span class="text-xs font-extrabold bg-pop-purple text-white px-2.5 py-0.5 rounded-full border border-zinc-900">
+                      เซ็ตคู่สุดคุ้ม (Berry + Citrus)
+                    </span>
+                  </div>
+                  <h4 class="text-xl font-extrabold text-zinc-900">Rainbow Duo Set (ได้ครบทั้ง 2 สูตร)</h4>
+                  <p class="text-sm text-zinc-700 mt-1">
+                    รับทั้ง Berry Pop (300ml) + Citrus Fresh (300ml) สลับใช้ได้ทุกวันทั้งบำรุงผมเด้งและดีท็อกซ์ความมัน
+                  </p>
+                </div>
+                
+                <div class="mt-4 pt-3 border-t-2 border-dashed border-zinc-400/50 flex items-center justify-between">
+                  <div>
+                    <span class="text-xs text-zinc-500 line-through block font-semibold">ปกติ ฿640</span>
+                    <span class="text-2xl font-extrabold text-purple-700">฿590</span>
+                  </div>
+                  <!-- Quantity Stepper -->
+                  <div class="flex items-center bg-white rounded-2xl p-1 border-2 border-zinc-900">
+                    <button type="button" onclick="updateQty('SKU-03', -1)" class="w-9 h-9 rounded-xl bg-zinc-100 text-zinc-900 hover:bg-pop-yellow font-extrabold border border-zinc-900 transition flex items-center justify-center">
+                      <i class="fa-solid fa-minus text-xs"></i>
+                    </button>
+                    <span id="qty-SKU-03" class="w-11 text-center font-extrabold text-zinc-900 text-base">0</span>
+                    <button type="button" onclick="updateQty('SKU-03', 1)" class="w-9 h-9 rounded-xl bg-pop-purple text-white hover:bg-purple-700 font-extrabold border border-zinc-900 transition flex items-center justify-center">
+                      <i class="fa-solid fa-plus text-xs"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Column: Checkout Form & Cart Summary -->
+          <div class="lg:col-span-5 bg-white rounded-3xl p-6 sm:p-7 border-2 border-zinc-900 shadow-pop-lg sticky top-24">
+            <div class="flex items-center justify-between pb-4 border-b-2 border-zinc-900">
+              <h4 class="text-lg font-extrabold text-zinc-900 flex items-center gap-2">
+                <span class="w-8 h-8 rounded-xl bg-pop-yellow border border-zinc-900 flex items-center justify-center text-sm">
+                  <i class="fa-solid fa-bag-shopping"></i>
+                </span>
+                สรุปรายการสั่งซื้อ
+              </h4>
+              <span id="total-items-badge" class="text-xs font-extrabold bg-pop-mint border border-zinc-900 text-zinc-900 px-3 py-1 rounded-full">
+                1 รายการ
+              </span>
+            </div>
+
+            <!-- Dynamic Cart Summary List -->
+            <div id="cart-summary-list" class="py-4 space-y-2.5 border-b-2 border-dashed border-zinc-200 text-sm">
+              <!-- Populated by JS -->
+            </div>
+
+            <!-- Total Price Box -->
+            <div class="my-4 p-4 rounded-2xl bg-pop-yellow/35 border-2 border-zinc-900 flex items-center justify-between">
+              <div>
+                <span class="text-sm font-extrabold text-zinc-900 block">ยอดชำระสุทธิ</span>
+                <span class="text-xs font-bold text-pop-pink">🎉 ส่งฟรีด่วนพิเศษทั่วไทย!</span>
+              </div>
+              <span id="cart-total-price" class="text-3xl font-extrabold text-zinc-900">฿290</span>
+            </div>
+
+            <!-- Customer Shipping Form -->
+            <form id="order-form" class="space-y-3.5 pt-1">
+              <div>
+                <label class="block text-xs font-extrabold text-zinc-800 mb-1">ชื่อ-นามสกุล ผู้รับสินค้า <span class="text-pop-pink">*</span></label>
+                <input type="text" id="cust-name" required placeholder="เช่น คุณพลอยใส ใจดี" class="w-full rounded-xl border-2 border-zinc-900 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-pop-pink bg-pop-cream" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-extrabold text-zinc-800 mb-1">เบอร์โทรศัพท์ติดต่อ <span class="text-pop-pink">*</span></label>
+                <input type="tel" id="cust-phone" required placeholder="08X-XXX-XXXX" class="w-full rounded-xl border-2 border-zinc-900 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-pop-pink bg-pop-cream" />
+              </div>
+
+              <div>
+                <label class="block text-xs font-extrabold text-zinc-800 mb-1">ที่อยู่จัดส่ง (บ้านเลขที่ ตำบล อำเภอ จังหวัด รหัสไปรษณีย์) <span class="text-pop-pink">*</span></label>
+                <textarea id="cust-address" required rows="3" placeholder="กรอกที่อยู่ให้ครบถ้วนเพื่อการจัดส่งที่รวดเร็ว..." class="w-full rounded-xl border-2 border-zinc-900 px-3.5 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-pop-pink bg-pop-cream"></textarea>
+              </div>
+
+              <div>
+                <label class="block text-xs font-extrabold text-zinc-800 mb-1.5">ช่องทางการชำระเงิน</label>
+                <div class="grid grid-cols-2 gap-2.5">
+                  <label class="cursor-pointer">
+                    <input type="radio" name="payment_method" value="เก็บเงินปลายทาง (COD)" checked class="peer sr-only" />
+                    <div class="p-3 rounded-2xl border-2 border-zinc-300 peer-checked:border-zinc-900 peer-checked:bg-pop-mint/40 peer-checked:shadow-pop-sm transition text-center">
+                      <i class="fa-solid fa-truck-fast text-zinc-900 mb-1 block"></i>
+                      <span class="text-xs font-extrabold text-zinc-900 block">เก็บเงินปลายทาง</span>
+                      <span class="text-[10px] font-semibold text-zinc-600">จ่ายหน้าบ้าน (COD)</span>
+                    </div>
+                  </label>
+                  <label class="cursor-pointer">
+                    <input type="radio" name="payment_method" value="โอนชำระผ่านธนาคาร" class="peer sr-only" />
+                    <div class="p-3 rounded-2xl border-2 border-zinc-300 peer-checked:border-zinc-900 peer-checked:bg-pop-blue/25 peer-checked:shadow-pop-sm transition text-center">
+                      <i class="fa-solid fa-qrcode text-zinc-900 mb-1 block"></i>
+                      <span class="text-xs font-extrabold text-zinc-900 block">โอนชำระเงิน</span>
+                      <span class="text-[10px] font-semibold text-zinc-600">พร้อมเพย์ / ธนาคาร</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <button type="submit" id="submit-order-btn" class="w-full bg-pop-pink hover:bg-rose-500 text-white font-extrabold py-3.5 px-6 rounded-2xl border-2 border-zinc-900 shadow-pop hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-pop-sm transition flex items-center justify-center gap-2 text-base mt-2">
+                <i class="fa-solid fa-sparkles"></i> ยืนยันคำสั่งซื้อเลย!
+              </button>
+
+              <!-- Google Sheet Sync Indicator -->
+              <div class="flex items-center justify-between text-[11px] font-semibold text-zinc-700 bg-zinc-100 px-3 py-2 rounded-xl border border-zinc-300">
+                <span id="checkout-sync-status" class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-pop-yellow border border-zinc-900"></span> บันทึกลงระบบจำลอง (Local)
+                </span>
+                <button type="button" onclick="switchTab('setup')" class="text-pop-pink font-extrabold hover:underline">
+                  ตั้งค่า Sheet
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- =====================================================================
+       TAB 2: ระบบหลังบ้านแพ็คของ & พิมพ์ใบจ่าหน้า (ADMIN & PACKING)
+  ====================================================================== -->
+  <main id="view-admin" class="hidden max-w-6xl mx-auto px-4 sm:px-6 py-8">
+    <!-- Admin Header & Stats -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white p-5 rounded-3xl border-2 border-zinc-900 shadow-pop">
+      <div>
+        <h2 class="text-xl sm:text-2xl font-extrabold text-zinc-900 flex items-center gap-2.5">
+          <span class="w-9 h-9 rounded-xl bg-pop-mint border-2 border-zinc-900 flex items-center justify-center text-base">
+            <i class="fa-solid fa-boxes-packing"></i>
+          </span>
+          ระบบหยิบสินค้า แพ็คของ & พิมพ์ใบจ่าหน้า
+        </h2>
+        <p class="text-xs sm:text-sm text-zinc-600 mt-1">เช็กรหัส SKU หยิบสินค้าลงกล่อง และพิมพ์ใบจ่าหน้าพัสดุขนาดมาตรฐาน 100x150mm</p>
+      </div>
+      
+      <div class="flex flex-wrap items-center gap-2">
+        <button onclick="syncFromGoogleSheet()" id="btn-sync-sheet" class="bg-pop-blue text-white border-2 border-zinc-900 shadow-pop-sm hover:opacity-90 px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-rotate"></i> ซิงค์จาก Google Sheet
+        </button>
+        <button onclick="resetDemoOrders()" class="bg-white hover:bg-zinc-100 text-zinc-800 border-2 border-zinc-900 shadow-pop-sm px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-arrow-rotate-left"></i> รีเซ็ตตัวอย่าง
+        </button>
+      </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-white p-4 rounded-2xl border-2 border-zinc-900 shadow-pop-sm">
+        <span class="text-xs font-bold text-zinc-500">ออเดอร์ทั้งหมด</span>
+        <p id="stat-total-orders" class="text-2xl font-extrabold text-zinc-900 mt-1">0</p>
+      </div>
+      <div class="bg-pop-yellow/40 p-4 rounded-2xl border-2 border-zinc-900 shadow-pop-sm">
+        <span class="text-xs font-extrabold text-zinc-900">รอหยิบ & แพ็คสินค้า</span>
+        <p id="stat-pending-orders" class="text-2xl font-extrabold text-pop-pink mt-1">0</p>
+      </div>
+      <div class="bg-pop-mint/40 p-4 rounded-2xl border-2 border-zinc-900 shadow-pop-sm">
+        <span class="text-xs font-extrabold text-zinc-900">แพ็คแล้ว / พร้อมส่ง</span>
+        <p id="stat-packed-orders" class="text-2xl font-extrabold text-emerald-800 mt-1">0</p>
+      </div>
+      <div class="bg-pink-100 p-4 rounded-2xl border-2 border-zinc-900 shadow-pop-sm">
+        <span class="text-xs font-extrabold text-zinc-900">ยอดขายรวม</span>
+        <p id="stat-total-revenue" class="text-2xl font-extrabold text-zinc-900 mt-1">฿0</p>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="flex items-center gap-2 mb-5 overflow-x-auto pb-1">
+      <button onclick="setOrderFilter('ALL')" id="filter-ALL" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-zinc-900 text-white border-2 border-zinc-900 transition">ทั้งหมด</button>
+      <button onclick="setOrderFilter('PENDING')" id="filter-PENDING" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-white text-zinc-800 border-2 border-zinc-900 hover:bg-pop-yellow/40 transition">รอแพ็คสินค้า</button>
+      <button onclick="setOrderFilter('PACKED')" id="filter-PACKED" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-white text-zinc-800 border-2 border-zinc-900 hover:bg-pop-mint/40 transition">แพ็คแล้ว / พร้อมส่ง</button>
+    </div>
+
+    <!-- Orders List Container -->
+    <div id="admin-orders-list" class="space-y-5">
+      <!-- Rendered dynamically by JS -->
+    </div>
+  </main>
+
+  <!-- =====================================================================
+       TAB 3: ตั้งค่าเชื่อมต่อ Google Sheets & โครงสร้าง GitHub / Vercel
+  ====================================================================== -->
+  <main id="view-setup" class="hidden max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+    
+    <!-- Section 1: Google Apps Script Webhook Configuration -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-zinc-900 shadow-pop">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <span class="text-xs font-extrabold bg-pop-mint border border-zinc-900 text-zinc-900 px-3 py-1 rounded-full">Step 1 : Database Connection</span>
+          <h3 class="text-xl font-extrabold text-zinc-900 mt-2.5">เชื่อมต่อ Google Sheets (Web App URL)</h3>
+          <p class="text-sm text-zinc-600 mt-1">วางลิงก์ Web App URL จาก Google Apps Script เพื่อบันทึกคำสั่งซื้อและอัปเดตสถานะการแพ็คลง Google Sheets อัตโนมัติ</p>
+        </div>
+        <div class="w-12 h-12 rounded-2xl bg-pop-yellow border-2 border-zinc-900 flex items-center justify-center text-xl shrink-0">
+          <i class="fa-solid fa-table"></i>
+        </div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-3 mt-4">
+        <input 
+          type="url" 
+          id="gas-url-input" 
+          placeholder="https://script.google.com/macros/s/AKfycbx.../exec" 
+          class="flex-1 rounded-xl border-2 border-zinc-900 px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-pop-pink bg-pop-cream"
+        />
+        <button onclick="saveGasUrl()" class="bg-pop-pink hover:bg-rose-500 text-white font-extrabold px-6 py-3 rounded-xl border-2 border-zinc-900 shadow-pop-sm text-sm transition shrink-0">
+          <i class="fa-solid fa-floppy-disk mr-1.5"></i> บันทึกการเชื่อมต่อ
+        </button>
+        <button onclick="clearGasUrl()" class="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold px-4 py-3 rounded-xl border-2 border-zinc-900 text-sm transition shrink-0">
+          ล้างค่า
+        </button>
+      </div>
+      <p id="gas-saved-feedback" class="text-xs font-medium text-zinc-600 mt-3">
+        * หากยังไม่ได้กรอก ระบบจะทำงานในโหมดทดสอบ (บันทึกลงเบราว์เซอร์ LocalStorage) ได้ทันที
+      </p>
+    </div>
+
+    <!-- Section 2: Google Apps Script Code -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-zinc-900 shadow-pop">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div>
+          <span class="text-xs font-extrabold bg-pop-yellow border border-zinc-900 text-zinc-900 px-3 py-1 rounded-full">Step 2 : Backend Script</span>
+          <h3 class="text-xl font-extrabold text-zinc-900 mt-2.5">โค้ด Google Apps Script (คัดลอกไปวางใน Google Sheet)</h3>
+          <p class="text-sm text-zinc-600 mt-1">สร้างแท็บชื่อ <code class="bg-pink-100 px-1.5 py-0.5 rounded font-mono font-bold text-pop-pink border border-zinc-300">Orders</code> และตั้งหัวคอลัมน์ A1:I1 ตามลำดับ แล้ว Deploy เป็น Web App (สิทธิ์: Anyone)</p>
+        </div>
+        <button onclick="copyGasCode()" class="bg-zinc-900 hover:bg-zinc-800 text-white px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 self-start sm:self-center shrink-0 border-2 border-zinc-900 shadow-pop-sm">
+          <i class="fa-regular fa-copy text-pop-yellow"></i> คัดลอกโค้ด Apps Script
+        </button>
+      </div>
+
+      <div class="bg-zinc-900 text-zinc-100 rounded-2xl p-4 overflow-x-auto text-xs font-mono leading-relaxed border-2 border-zinc-900">
+<pre id="gas-source-code">const SHEET_NAME = 'Orders';
+
+// รับคำสั่งซื้อจากหน้าร้าน (POST)
+function doPost(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const data = JSON.parse(e.postData.contents);
+  
+  const orderId = data.orderId || ('ORD-' + Math.floor(100000 + Math.random() * 900000));
+  const timestamp = new Date().toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+  
+  sheet.appendRow([
+    orderId,
+    timestamp,
+    data.name,
+    "'" + data.phone,
+    data.address,
+    data.itemsText,
+    data.total,
+    data.payment,
+    'รอแพ็คสินค้า'
+  ]);
+  
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', orderId: orderId }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ดึงรายการออเดอร์ & อัปเดตสถานะแพ็คสินค้า (GET)
+function doGet(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  const action = e.parameter.action;
+  
+  if (action === 'updateStatus') {
+    const orderId = e.parameter.orderId;
+    const rows = sheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === orderId) {
+        sheet.getRange(i + 1, 9).setValue('แพ็คแล้ว / พร้อมส่ง');
+        break;
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({ status: 'updated' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0];
+  const orders = rows.slice(1).map(row => {
+    let obj = {};
+    headers.forEach((h, i) => obj[h] = row[i]);
+    return obj;
+  });
+  
+  return ContentService.createTextOutput(JSON.stringify(orders.reverse()))
+    .setMimeType(ContentService.MimeType.JSON);
+}</pre>
+      </div>
+    </div>
+
+    <!-- Section 3: GitHub & Vercel Deployment Structure -->
+    <div class="bg-white rounded-3xl p-6 sm:p-8 border-2 border-zinc-900 shadow-pop">
+      <span class="text-xs font-extrabold bg-pop-blue text-white border border-zinc-900 px-3 py-1 rounded-full">Step 3 : GitHub & Vercel Hosting</span>
+      <h3 class="text-xl font-extrabold text-zinc-900 mt-2.5">โครงสร้างโฟลเดอร์สำหรับอัปโหลดขึ้น GitHub และ Deploy บน Vercel</h3>
+      <p class="text-sm text-zinc-600 mt-1 mb-5">จัดเรียงไฟล์ใน Repository ของคุณโดยแยกโฟลเดอร์ <code class="bg-zinc-100 px-1.5 py-0.5 rounded font-mono font-bold">images/</code> สำหรับเก็บรูปภาพสินค้าต่างหาก จากนั้นเชื่อมต่อ Repo เข้ากับ Vercel เพื่อออนไลน์เว็บไซต์ได้ฟรี</p>
+
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-pop-cream border-2 border-zinc-900 rounded-2xl p-4 font-mono text-xs text-zinc-900">
+          <p class="font-extrabold text-pop-pink mb-2"><i class="fa-brands fa-github mr-1"></i> โครงสร้าง Repository บน GitHub:</p>
+<pre class="leading-relaxed">fizzpop-shampoo/
+├── index.html              # ไฟล์หลักเว็บแอปพลิเคชันนี้
+└── images/                 # โฟลเดอร์เก็บรูปภาพแยกต่างหาก
+    ├── hero-banner.png     # รูปแบนเนอร์หลัก
+    ├── sku1-berry.png      # รูปยาสระผม SKU-01
+    ├── sku2-citrus.png     # รูปยาสระผม SKU-02
+    └── sku3-duo-set.png    # รูปเซ็ตคู่ SKU-03</pre>
+        </div>
+
+        <div class="space-y-3 text-sm text-zinc-800 font-medium">
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 rounded-xl bg-pop-pink text-white border border-zinc-900 font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">1</span>
+            <p>สร้าง Repository ใหม่บน <strong>GitHub</strong> และอัปโหลดไฟล์ <code class="bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-300">index.html</code> พร้อมโฟลเดอร์ <code class="bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-300">images/</code></p>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 rounded-xl bg-pop-yellow text-zinc-900 border border-zinc-900 font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">2</span>
+            <p>เข้าสู่ระบบ <strong>Vercel.com</strong> กด <em>Add New Project</em> และเลือก Import Repository จาก GitHub</p>
+          </div>
+          <div class="flex items-start gap-3">
+            <span class="w-7 h-7 rounded-xl bg-pop-mint text-zinc-900 border border-zinc-900 font-extrabold text-xs flex items-center justify-center shrink-0 mt-0.5">3</span>
+            <p>กด <strong>Deploy</strong> ทันที ระบบจะสร้างโดเมน <code class="bg-zinc-100 px-1.5 py-0.5 rounded border border-zinc-300">*.vercel.app</code> ให้ใช้งานได้ทันที</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- =====================================================================
+       MODAL: ตัวอย่าง & พิมพ์ใบจ่าหน้าพัสดุ (100x150mm Shipping Label)
+  ====================================================================== -->
+  <div id="label-modal" class="fixed inset-0 z-50 hidden bg-zinc-900/75 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-lg w-full border-2 border-zinc-900 shadow-pop-lg overflow-hidden my-auto">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 bg-pop-yellow/40 border-b-2 border-zinc-900 flex items-center justify-between no-print">
+        <div>
+          <h3 class="font-extrabold text-zinc-900">ตัวอย่างใบจ่าหน้าพัสดุ (100 x 150 mm)</h3>
+          <p class="text-xs font-medium text-zinc-700">รองรับเครื่องพิมพ์ความร้อน (Thermal Printer) และกระดาษ A6</p>
+        </div>
+        <button onclick="closeLabelModal()" class="w-9 h-9 rounded-xl bg-white text-zinc-900 hover:bg-pop-pink hover:text-white flex items-center justify-center border-2 border-zinc-900 transition">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Shipping Label Preview Box (100x150mm aspect ratio) -->
+      <div class="p-6 bg-zinc-200 flex justify-center">
+        <div id="print-label-container" class="w-[340px] min-h-[480px] bg-white border-2 border-black p-4 text-black shadow-md flex flex-col justify-between font-sans">
+          
+          <div>
+            <!-- Top Header: Brand & Order Barcode -->
+            <div class="border-b-2 border-black pb-2.5 flex justify-between items-start gap-2">
+              <div>
+                <p class="font-extrabold text-sm tracking-tight">FIZZPOP EXPRESS</p>
+                <p class="text-[10px] leading-tight mt-0.5">
+                  <strong>ผู้ส่ง:</strong> ร้าน FizzPop Hair Care<br/>
+                  88/24 ซ.อารีย์สัมพันธ์ ถ.พหลโยธิน<br/>
+                  เขตพญาไท กรุงเทพฯ 10400 (โทร. 02-987-6543)
+                </p>
+              </div>
+              <div class="text-right shrink-0">
+                <span id="lbl-order-id" class="inline-block border-2 border-black px-2 py-0.5 font-extrabold text-xs">ORD-000000</span>
+                <p id="lbl-date" class="text-[9px] text-gray-700 mt-1"></p>
+              </div>
+            </div>
+
+            <!-- Simulated Barcode -->
+            <div class="py-2 border-b border-black text-center">
+              <div class="h-9 w-4/5 mx-auto barcode-stripes"></div>
+              <p id="lbl-barcode-text" class="text-[10px] font-mono font-bold tracking-widest mt-0.5">*ORD-000000*</p>
+            </div>
+
+            <!-- Recipient Section -->
+            <div class="py-3 border-b-2 border-black">
+              <span class="inline-block bg-black text-white text-[10px] font-bold px-2 py-0.5 uppercase mb-1">ผู้รับ (TO / RECIPIENT)</span>
+              <p id="lbl-cust-name" class="text-base font-extrabold leading-snug"></p>
+              <p id="lbl-cust-phone" class="text-sm font-bold mt-0.5"></p>
+              <p id="lbl-cust-address" class="text-xs mt-1.5 leading-relaxed font-medium"></p>
+            </div>
+
+            <!-- Packing List / SKU Items inside the box -->
+            <div class="py-2.5">
+              <p class="text-[10px] font-extrabold uppercase underline mb-1">รายการสินค้าในกล่อง (PACKING LIST):</p>
+              <div id="lbl-items-list" class="text-xs font-bold space-y-1"></div>
+            </div>
+          </div>
+
+          <!-- COD / Payment Box at Bottom -->
+          <div class="mt-2">
+            <div id="lbl-cod-box" class="border-2 border-black p-2.5 text-center">
+              <p id="lbl-payment-title" class="text-xs font-bold uppercase"></p>
+              <p id="lbl-payment-amount" class="text-xl font-black mt-0.5"></p>
+            </div>
+            <div class="flex justify-between text-[9px] text-gray-600 mt-1.5 pt-1 border-t border-dashed border-gray-400">
+              <span>กรุณาถ่ายวิดีโอขณะเปิดกล่องพัสดุ</span>
+              <span>น้ำหนักสุทธิ ~0.7 kg</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Modal Footer Actions -->
+      <div class="px-6 py-4 bg-white border-t-2 border-zinc-900 flex items-center justify-end gap-3 no-print">
+        <button onclick="closeLabelModal()" class="px-4 py-2.5 rounded-xl border-2 border-zinc-900 text-zinc-800 text-sm font-bold hover:bg-zinc-100">
+          ปิดหน้าต่าง
+        </button>
+        <button onclick="window.print()" class="px-5 py-2.5 rounded-xl bg-pop-pink hover:bg-rose-500 text-white text-sm font-extrabold border-2 border-zinc-900 shadow-pop-sm flex items-center gap-2">
+          <i class="fa-solid fa-print"></i> สั่งพิมพ์ใบจ่าหน้า (Print)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t-2 border-zinc-900 mt-16 py-8 text-center text-xs text-zinc-600 no-print">
+    <div class="max-w-6xl mx-auto px-4">
+      <p class="font-extrabold text-zinc-900 text-sm">🍓🍋 FizzPop Vibrant Shampoo — ระบบขายและจัดการคำสั่งซื้อครบวงจร</p>
+      <p class="mt-1 font-medium">รองรับการเชื่อมต่อ Google Sheets API, GitHub Repository และ Vercel Deployment</p>
+    </div>
+  </footer>
+
+  <!-- =====================================================================
+       APPLICATION LOGIC (JAVASCRIPT)
+  ====================================================================== -->
+  <script>
+    // 1. Vibrant Product Catalog Configuration (3 SKUs)
+    const PRODUCTS = {
+      'SKU-01': {
+        sku: 'SKU-01',
+        name: 'Berry Pop Volume (เบอร์รี่รวม & ไบโอติน)',
+        shortName: 'Berry Pop (ชมพู)',
+        price: 290,
+        badgeColor: 'bg-pop-pink text-white'
+      },
+      'SKU-02': {
+        sku: 'SKU-02',
+        name: 'Citrus Fresh Detox (ส้มยูซุ & มิ้นท์)',
+        shortName: 'Citrus Fresh (เหลือง-ฟ้า)',
+        price: 350,
+        badgeColor: 'bg-pop-blue text-white'
+      },
+      'SKU-03': {
+        sku: 'SKU-03',
+        name: 'Rainbow Duo Set (Berry + Citrus)',
+        shortName: 'Rainbow Duo Set (คู่สุดคุ้ม)',
+        price: 590,
+        badgeColor: 'bg-pop-purple text-white'
+      }
+    };
+
+    // 2. Application State
+    let cart = {
+      'SKU-01': 1,
+      'SKU-02': 0,
+      'SKU-03': 0
+    };
+
+    let currentFilter = 'ALL';
+    const STORAGE_KEY_ORDERS = 'fizzpop_orders_v1';
+    const STORAGE_KEY_GAS_URL = 'fizzpop_gas_url_v1';
+
+    // Default Sample Orders for Demonstration
+    const DEFAULT_ORDERS = [
+      {
+        orderId: 'ORD-772104',
+        timestamp: '24/11/2026 14:20',
+        name: 'คุณมินตรา สดใส',
+        phone: '089-111-2233',
+        address: '12/88 คอนโดป๊อปทาวเวอร์ ถ.สุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพฯ 10110',
+        items: [
+          { sku: 'SKU-01', name: 'Berry Pop Volume (เบอร์รี่รวม & ไบโอติน)', qty: 1, price: 290 },
+          { sku: 'SKU-02', name: 'Citrus Fresh Detox (ส้มยูซุ & มิ้นท์)', qty: 1, price: 350 }
+        ],
+        total: 640,
+        payment: 'เก็บเงินปลายทาง (COD)',
+        status: 'รอแพ็คสินค้า'
+      },
+      {
+        orderId: 'ORD-772095',
+        timestamp: '24/11/2026 11:05',
+        name: 'คุณกฤตภาส วัฒนากูล',
+        phone: '084-555-6677',
+        address: '99/5 หมู่บ้านสีสัน ถ.ห้วยแก้ว ต.สุเทพ อ.เมือง จ.เชียงใหม่ 50200',
+        items: [
+          { sku: 'SKU-03', name: 'Rainbow Duo Set (Berry + Citrus)', qty: 1, price: 590 }
+        ],
+        total: 590,
+        payment: 'โอนชำระผ่านธนาคาร',
+        status: 'รอแพ็คสินค้า'
+      },
+      {
+        orderId: 'ORD-772041',
+        timestamp: '23/11/2026 17:45',
+        name: 'คุณณัฐชา รัตนโชติ',
+        phone: '095-333-4488',
+        address: '45/2 ถ.นิพัทธ์อุทิศ 3 ต.หาดใหญ่ อ.หาดใหญ่ จ.สงขลา 90110',
+        items: [
+          { sku: 'SKU-01', name: 'Berry Pop Volume (เบอร์รี่รวม & ไบโอติน)', qty: 2, price: 290 }
+        ],
+        total: 580,
+        payment: 'เก็บเงินปลายทาง (COD)',
+        status: 'แพ็คแล้ว / พร้อมส่ง'
+      }
+    ];
+
+    // 3. Initialize App on Load
+    window.addEventListener('DOMContentLoaded', () => {
+      initOrders();
+      renderCartSummary();
+      updateGasConnectionUI();
+      renderAdminOrders();
+    });
+
+    function getOrders() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_ORDERS);
+        if (!raw) {
+          localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(DEFAULT_ORDERS));
+          return DEFAULT_ORDERS;
+        }
+        return JSON.parse(raw);
+      } catch (e) {
+        return DEFAULT_ORDERS;
+      }
+    }
+
+    function saveOrders(orders) {
+      localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(orders));
+      updatePendingBadge();
+    }
+
+    function initOrders() {
+      getOrders();
+      updatePendingBadge();
+    }
+
+    function resetDemoOrders() {
+      localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(DEFAULT_ORDERS));
+      renderAdminOrders();
+      updatePendingBadge();
+      showToast('รีเซ็ตข้อมูลออเดอร์ตัวอย่างเรียบร้อยแล้ว!', 'info');
+    }
+
+    // 4. Navigation & Tab Switching
+    function switchTab(tabName) {
+      const views = ['store', 'admin', 'setup'];
+      views.forEach(v => {
+        document.getElementById(`view-${v}`).classList.add('hidden');
+        const btn = document.getElementById(`tab-${v}`);
+        btn.className = 'flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-zinc-700 hover:bg-white border-2 border-transparent whitespace-nowrap';
+      });
+
+      document.getElementById(`view-${tabName}`).classList.remove('hidden');
+      const activeBtn = document.getElementById(`tab-${tabName}`);
+      activeBtn.className = 'flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-pop-pink text-white border-2 border-zinc-900 shadow-pop-sm whitespace-nowrap';
+
+      if (tabName === 'admin') {
+        renderAdminOrders();
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // 5. Cart & Quantity Controls (Landing Page)
+    function updateQty(sku, delta) {
+      const nextVal = (cart[sku] || 0) + delta;
+      if (nextVal < 0) return;
+      cart[sku] = nextVal;
+      document.getElementById(`qty-${sku}`).innerText = nextVal;
+      renderCartSummary();
+    }
+
+    function renderCartSummary() {
+      const listEl = document.getElementById('cart-summary-list');
+      const totalEl = document.getElementById('cart-total-price');
+      const badgeEl = document.getElementById('total-items-badge');
+
+      let html = '';
+      let totalPrice = 0;
+      let totalQty = 0;
+
+      Object.keys(PRODUCTS).forEach(sku => {
+        const qty = cart[sku] || 0;
+        if (qty > 0) {
+          const item = PRODUCTS[sku];
+          const subtotal = qty * item.price;
+          totalPrice += subtotal;
+          totalQty += qty;
+
+          html += `
+            <div class="flex items-center justify-between text-zinc-800">
+              <div class="flex items-center gap-2">
+                <span class="text-[11px] font-extrabold ${item.badgeColor} border border-zinc-900 px-2 py-0.5 rounded-lg">${sku}</span>
+                <span class="font-semibold">${item.shortName} <strong class="text-pop-pink">x${qty}</strong></span>
+              </div>
+              <span class="font-extrabold">฿${subtotal.toLocaleString()}</span>
+            </div>
+          `;
+        }
+      });
+
+      if (totalQty === 0) {
+        html = `<p class="text-center text-zinc-400 py-2 text-xs font-medium">ยังไม่ได้เลือกสินค้า กรุณากดปุ่ม + เพิ่มสินค้าด้านซ้าย</p>`;
+      }
+
+      listEl.innerHTML = html;
+      totalEl.innerText = `฿${totalPrice.toLocaleString()}`;
+      badgeEl.innerText = `${totalQty} รายการ`;
+    }
+
+    // 6. Checkout & Submit Order
+    document.getElementById('order-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const q1 = cart['SKU-01'] || 0;
+      const q2 = cart['SKU-02'] || 0;
+      const q3 = cart['SKU-03'] || 0;
+
+      if (q1 === 0 && q2 === 0 && q3 === 0) {
+        showToast('กรุณาเลือกสินค้าอย่างน้อย 1 รายการก่อนยืนยันคำสั่งซื้อ!', 'error');
+        return;
+      }
+
+      const name = document.getElementById('cust-name').value.trim();
+      const phone = document.getElementById('cust-phone').value.trim();
+      const address = document.getElementById('cust-address').value.trim();
+      const payment = document.querySelector('input[name="payment_method"]:checked').value;
+
+      const orderItems = [];
+      let itemsTextArr = [];
+      let total = 0;
+
+      [ ['SKU-01', q1], ['SKU-02', q2], ['SKU-03', q3] ].forEach(([sku, qty]) => {
+        if (qty > 0) {
+          const p = PRODUCTS[sku];
+          orderItems.push({ sku, name: p.name, qty, price: p.price });
+          itemsTextArr.push(`[${sku} ${p.shortName} x ${qty}]`);
+          total += qty * p.price;
+        }
+      });
+
+      const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
+      const now = new Date();
+      const timestamp = now.toLocaleDateString('th-TH') + ' ' + now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+
+      const newOrder = {
+        orderId,
+        timestamp,
+        name,
+        phone,
+        address,
+        items: orderItems,
+        itemsText: itemsTextArr.join(', '),
+        total,
+        payment,
+        status: 'รอแพ็คสินค้า'
+      };
+
+      const submitBtn = document.getElementById('submit-order-btn');
+      const originalBtnHtml = submitBtn.innerHTML;
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังบันทึกคำสั่งซื้อ...`;
+
+      // Save to LocalStorage immediately
+      const orders = getOrders();
+      orders.unshift(newOrder);
+      saveOrders(orders);
+
+      // Sync to Google Sheets if configured
+      const gasUrl = localStorage.getItem(STORAGE_KEY_GAS_URL);
+      let sheetSynced = false;
+
+      if (gasUrl) {
+        try {
+          await fetch(gasUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newOrder)
+          });
+          sheetSynced = true;
+        } catch (err) {
+          console.error('Google Sheets Sync Error:', err);
+        }
+      }
+
+      setTimeout(() => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalBtnHtml;
+        document.getElementById('order-form').reset();
+
+        const syncMsg = sheetSynced 
+          ? 'ส่งข้อมูลเข้า Google Sheets เรียบร้อย!' 
+          : 'ดูออเดอร์ได้ที่แท็บ "แพ็คของ & จ่าหน้า"';
+        
+        showToast(`สั่งซื้อสำเร็จ! รหัส ${orderId} (${syncMsg})`, 'success');
+      }, 400);
+    });
+
+    // 7. Admin & Packing Management
+    function updatePendingBadge() {
+      const orders = getOrders();
+      const pendingCount = orders.filter(o => o.status === 'รอแพ็คสินค้า').length;
+      document.getElementById('pending-badge').innerText = pendingCount;
+    }
+
+    function setOrderFilter(filter) {
+      currentFilter = filter;
+      ['ALL', 'PENDING', 'PACKED'].forEach(f => {
+        const btn = document.getElementById(`filter-${f}`);
+        if (f === filter) {
+          btn.className = 'px-4 py-2 rounded-xl text-xs font-extrabold bg-zinc-900 text-white border-2 border-zinc-900 transition';
+        } else {
+          btn.className = 'px-4 py-2 rounded-xl text-xs font-extrabold bg-white text-zinc-800 border-2 border-zinc-900 hover:bg-pop-yellow/40 transition';
+        }
+      });
+      renderAdminOrders();
+    }
+
+    function renderAdminOrders() {
+      const orders = getOrders();
+      const container = document.getElementById('admin-orders-list');
+
+      const pendingCount = orders.filter(o => o.status === 'รอแพ็คสินค้า').length;
+      const packedCount = orders.filter(o => o.status !== 'รอแพ็คสินค้า').length;
+      const revenue = orders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+
+      document.getElementById('stat-total-orders').innerText = orders.length;
+      document.getElementById('stat-pending-orders').innerText = pendingCount;
+      document.getElementById('stat-packed-orders').innerText = packedCount;
+      document.getElementById('stat-total-revenue').innerText = `฿${revenue.toLocaleString()}`;
+
+      const filtered = orders.filter(o => {
+        if (currentFilter === 'PENDING') return o.status === 'รอแพ็คสินค้า';
+        if (currentFilter === 'PACKED') return o.status !== 'รอแพ็คสินค้า';
+        return true;
+      });
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="bg-white rounded-3xl p-12 text-center border-2 border-zinc-900 shadow-pop">
+            <i class="fa-solid fa-box-open text-4xl text-pop-pink mb-3"></i>
+            <p class="text-zinc-800 font-extrabold">ไม่มีรายการคำสั่งซื้อในหมวดหมู่นี้</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(order => {
+        const isPacked = order.status !== 'รอแพ็คสินค้า';
+        const isCOD = order.payment.includes('COD');
+
+        const pickListHtml = (order.items || []).map(item => {
+          const skuStyle = item.sku === 'SKU-01' 
+            ? 'bg-pop-pink text-white' 
+            : item.sku === 'SKU-02' 
+              ? 'bg-pop-blue text-white' 
+              : 'bg-pop-purple text-white';
+          return `
+            <div class="flex items-center justify-between bg-pop-cream border-2 border-zinc-900 px-3 py-2 rounded-xl">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-extrabold px-2 py-0.5 rounded-lg border border-zinc-900 ${skuStyle}">
+                  ${item.sku}
+                </span>
+                <span class="text-xs sm:text-sm font-bold text-zinc-900">${item.name}</span>
+              </div>
+              <span class="text-xs sm:text-sm font-extrabold text-zinc-900 bg-pop-yellow border border-zinc-900 px-2.5 py-0.5 rounded-lg shrink-0">
+                หยิบ ${item.qty}
+              </span>
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="bg-white rounded-3xl p-5 sm:p-6 border-2 border-zinc-900 shadow-pop transition-all">
+            <div class="flex flex-col lg:flex-row justify-between gap-6">
+              
+              <!-- Left: Order & Customer Info + Pick List -->
+              <div class="flex-1 space-y-3">
+                <div class="flex flex-wrap items-center gap-2.5">
+                  <span class="font-mono font-extrabold text-base text-zinc-900 bg-pop-yellow px-3 py-1 rounded-xl border-2 border-zinc-900">
+                    ${order.orderId}
+                  </span>
+                  <span class="inline-flex items-center gap-1.5 text-xs font-extrabold px-3 py-1 rounded-full border border-zinc-900 ${isPacked ? 'bg-pop-mint text-zinc-900' : 'bg-pink-100 text-pop-pink'}">
+                    <span class="w-2 h-2 rounded-full bg-zinc-900"></span>
+                    ${order.status}
+                  </span>
+                  <span class="text-xs font-semibold text-zinc-500"><i class="fa-regular fa-clock mr-1"></i>${order.timestamp}</span>
+                </div>
+
+                <!-- Customer Address -->
+                <div class="text-sm text-zinc-800 space-y-1 bg-zinc-50 p-3.5 rounded-2xl border border-zinc-200">
+                  <p><strong class="text-zinc-900">ผู้รับ:</strong> ${order.name} <span class="text-zinc-600 font-semibold ml-2"><i class="fa-solid fa-phone text-xs mr-1 text-pop-pink"></i>${order.phone}</span></p>
+                  <p class="text-zinc-700"><strong class="text-zinc-900">ที่อยู่จัดส่ง:</strong> ${order.address}</p>
+                </div>
+
+                <!-- Warehouse Pick List -->
+                <div class="pt-1">
+                  <p class="text-xs font-extrabold text-zinc-900 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <i class="fa-solid fa-dolly text-pop-pink"></i> ใบหยิบสินค้า (Warehouse Pick List):
+                  </p>
+                  <div class="grid sm:grid-cols-2 gap-2.5">
+                    ${pickListHtml}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right: Payment & Action Buttons -->
+              <div class="lg:w-64 flex flex-col justify-between border-t-2 lg:border-t-0 lg:border-l-2 border-dashed border-zinc-300 pt-4 lg:pt-0 lg:pl-6 gap-4">
+                <div class="bg-pop-yellow/30 p-3.5 rounded-2xl border-2 border-zinc-900 flex lg:block justify-between items-center">
+                  <div>
+                    <span class="text-xs font-bold text-zinc-700 block">ยอดรวมทั้งหมด</span>
+                    <span class="text-2xl font-extrabold text-zinc-900">฿${Number(order.total).toLocaleString()}</span>
+                  </div>
+                  <span class="inline-block mt-1 text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg border border-zinc-900 ${isCOD ? 'bg-pop-pink text-white' : 'bg-pop-mint text-zinc-900'}">
+                    ${order.payment}
+                  </span>
+                </div>
+
+                <div class="flex flex-col gap-2.5">
+                  <button onclick="openLabelModal('${order.orderId}')" class="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-extrabold py-2.5 px-4 rounded-xl border-2 border-zinc-900 shadow-pop-sm text-xs sm:text-sm transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-print text-pop-yellow"></i> พิมพ์ใบจ่าหน้า (100x150mm)
+                  </button>
+                  
+                  ${!isPacked ? `
+                    <button onclick="markOrderPacked('${order.orderId}')" class="w-full bg-pop-mint hover:bg-emerald-300 text-zinc-900 font-extrabold py-2.5 px-4 rounded-xl border-2 border-zinc-900 shadow-pop-sm text-xs sm:text-sm transition flex items-center justify-center gap-2">
+                      <i class="fa-solid fa-box-check"></i> ยืนยันแพ็คสินค้าเสร็จ
+                    </button>
+                  ` : `
+                    <div class="w-full bg-emerald-100 text-emerald-900 border-2 border-zinc-900 font-extrabold py-2 px-4 rounded-xl text-xs text-center">
+                      <i class="fa-solid fa-circle-check mr-1 text-emerald-700"></i> แพ็คลงกล่องเรียบร้อยแล้ว
+                    </div>
+                  `}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function markOrderPacked(orderId) {
+      const orders = getOrders();
+      const idx = orders.findIndex(o => o.orderId === orderId);
+      if (idx === -1) return;
+
+      orders[idx].status = 'แพ็คแล้ว / พร้อมส่ง';
+      saveOrders(orders);
+      renderAdminOrders();
+      showToast(`อัปเดตออเดอร์ ${orderId} เป็น "แพ็คแล้ว / พร้อมส่ง" เรียบร้อย!`, 'success');
+
+      const gasUrl = localStorage.getItem(STORAGE_KEY_GAS_URL);
+      if (gasUrl) {
+        try {
+          await fetch(`${gasUrl}?action=updateStatus&orderId=${encodeURIComponent(orderId)}`, { mode: 'no-cors' });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+
+    // 8. Shipping Label Preview & Print Modal
+    function openLabelModal(orderId) {
+      const orders = getOrders();
+      const order = orders.find(o => o.orderId === orderId);
+      if (!order) return;
+
+      document.getElementById('lbl-order-id').innerText = order.orderId;
+      document.getElementById('lbl-date').innerText = order.timestamp;
+      document.getElementById('lbl-barcode-text').innerText = `*${order.orderId}*`;
+      document.getElementById('lbl-cust-name').innerText = order.name;
+      document.getElementById('lbl-cust-phone').innerText = `โทร: ${order.phone}`;
+      document.getElementById('lbl-cust-address').innerText = order.address;
+
+      const itemsHtml = (order.items || []).map(item => `
+        <div class="flex justify-between border-b border-dotted border-gray-400 pb-0.5">
+          <span>[ ${item.sku} ] ${item.name}</span>
+          <span>x ${item.qty}</span>
+        </div>
+      `).join('');
+      document.getElementById('lbl-items-list').innerHTML = itemsHtml;
+
+      const isCOD = order.payment.includes('COD');
+      const codBox = document.getElementById('lbl-cod-box');
+      if (isCOD) {
+        codBox.className = 'border-2 border-black bg-black text-white p-2.5 text-center';
+        document.getElementById('lbl-payment-title').innerText = 'เก็บเงินปลายทาง (COD)';
+        document.getElementById('lbl-payment-amount').innerText = `฿${Number(order.total).toLocaleString()}.-`;
+      } else {
+        codBox.className = 'border-2 border-black bg-white text-black p-2.5 text-center';
+        document.getElementById('lbl-payment-title').innerText = 'ชำระเงินแล้ว (PAID - ไม่ต้องเก็บเงิน)';
+        document.getElementById('lbl-payment-amount').innerText = 'NO COD';
+      }
+
+      document.getElementById('label-modal').classList.remove('hidden');
+    }
+
+    function closeLabelModal() {
+      document.getElementById('label-modal').classList.add('hidden');
+    }
+
+    // 9. Google Sheets Configuration & Sync Helpers
+    function saveGasUrl() {
+      const url = document.getElementById('gas-url-input').value.trim();
+      if (!url) {
+        showToast('กรุณากรอก Web App URL ก่อนกดบันทึก', 'error');
+        return;
+      }
+      localStorage.setItem(STORAGE_KEY_GAS_URL, url);
+      updateGasConnectionUI();
+      showToast('บันทึก Google Apps Script URL เรียบร้อยแล้ว!', 'success');
+    }
+
+    function clearGasUrl() {
+      localStorage.removeItem(STORAGE_KEY_GAS_URL);
+      document.getElementById('gas-url-input').value = '';
+      updateGasConnectionUI();
+      showToast('ล้างการเชื่อมต่อ Google Sheets แล้ว (กลับสู่โหมดจำลอง)', 'info');
+    }
+
+    function updateGasConnectionUI() {
+      const gasUrl = localStorage.getItem(STORAGE_KEY_GAS_URL) || '';
+      document.getElementById('gas-url-input').value = gasUrl;
+
+      const checkoutStatus = document.getElementById('checkout-sync-status');
+      const mobileBadge = document.getElementById('api-status-badge-mobile');
+      const feedbackEl = document.getElementById('gas-saved-feedback');
+
+      if (gasUrl) {
+        checkoutStatus.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-pop-mint border border-zinc-900"></span> เชื่อมต่อ Google Sheets พร้อมใช้งาน`;
+        mobileBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Sheet OK`;
+        feedbackEl.innerHTML = `<span class="text-emerald-700 font-extrabold"><i class="fa-solid fa-circle-check mr-1"></i> เชื่อมต่ออยู่กับ:</span> <span class="font-mono">${gasUrl.substring(0, 48)}...</span>`;
+      } else {
+        checkoutStatus.innerHTML = `<span class="w-2.5 h-2.5 rounded-full bg-pop-yellow border border-zinc-900"></span> บันทึกลงระบบจำลอง (Local)`;
+        mobileBadge.innerHTML = `<span class="w-2 h-2 rounded-full bg-pop-pink"></span> Demo`;
+        feedbackEl.innerText = '* หากยังไม่ได้กรอก ระบบจะทำงานในโหมดทดสอบ (บันทึกลงเบราว์เซอร์ LocalStorage) ได้ทันที';
+      }
+    }
+
+    async function syncFromGoogleSheet() {
+      const gasUrl = localStorage.getItem(STORAGE_KEY_GAS_URL);
+      if (!gasUrl) {
+        showToast('กรุณาตั้งค่า Google Apps Script URL ในแท็บ "ตั้งค่า & โค้ด" ก่อนซิงค์', 'error');
+        switchTab('setup');
+        return;
+      }
+
+      const btn = document.getElementById('btn-sync-sheet');
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> กำลังดึงข้อมูล...`;
+
+      try {
+        const res = await fetch(gasUrl);
+        const sheetOrders = await res.json();
+        if (Array.isArray(sheetOrders) && sheetOrders.length > 0) {
+          const mapped = sheetOrders.map(row => ({
+            orderId: row.Order_ID || 'ORD-SHEET',
+            timestamp: row.Timestamp || '',
+            name: row.Customer_Name || '',
+            phone: String(row.Phone || '').replace(/^'/, ''),
+            address: row.Address || '',
+            items: [{ sku: 'SKU', name: row.Items_SKU || 'สินค้า', qty: 1, price: row.Total_Price || 0 }],
+            total: row.Total_Price || 0,
+            payment: row.Payment_Method || 'COD',
+            status: row.Status || 'รอแพ็คสินค้า'
+          }));
+          saveOrders(mapped);
+          renderAdminOrders();
+          showToast(`ดึงข้อมูลจาก Google Sheets สำเร็จ (${mapped.length} รายการ)`, 'success');
+        } else {
+          showToast('ไม่พบข้อมูลออเดอร์ใหม่ใน Google Sheets', 'info');
+        }
+      } catch (err) {
+        showToast('ไม่สามารถดึงข้อมูลจาก Google Sheets ได้ กรุณาตรวจสอบสิทธิ์ Web App (Anyone)', 'error');
+      } finally {
+        btn.innerHTML = `<i class="fa-solid fa-rotate"></i> ซิงค์จาก Google Sheet`;
+      }
+    }
+
+    function copyGasCode() {
+      const codeText = document.getElementById('gas-source-code').innerText;
+      const textarea = document.createElement('textarea');
+      textarea.value = codeText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        showToast('คัดลอกโค้ด Google Apps Script ลงคลิปบอร์ดแล้ว!', 'success');
+      } catch (err) {
+        showToast('ไม่สามารถคัดลอกอัตโนมัติได้ กรุณาลากคลุมเพื่อคัดลอก', 'error');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    // 10. Custom Pop Toast Notification System
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      
+      const colors = {
+        success: 'bg-pop-mint text-zinc-900 border-zinc-900',
+        error: 'bg-pop-pink text-white border-zinc-900',
+        info: 'bg-pop-yellow text-zinc-900 border-zinc-900'
+      };
+      const icons = {
+        success: 'fa-circle-check text-zinc-900',
+        error: 'fa-circle-exclamation text-white',
+        info: 'fa-circle-info text-zinc-900'
+      };
+
+      toast.className = `pointer-events-auto flex items-center gap-3 px-4 py-3.5 rounded-2xl shadow-pop border-2 ${colors[type]} text-sm font-extrabold transform transition-all duration-300 translate-y-2 opacity-0`;
+      toast.innerHTML = `
+        <i class="fa-solid ${icons[type]} text-lg shrink-0"></i>
+        <span class="flex-1 leading-snug">${message}</span>
+      `;
+
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+  </script>
+</body>
+</html>
